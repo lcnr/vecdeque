@@ -6,7 +6,7 @@ pub fn sort<T: Ord>(q: &mut VecDeque<T>) {
     sort_by(q, |a, b| a.cmp(b))
 }
 
-fn merge<T, F>(front: &mut [T], back: &mut [T], compare: &mut F)
+fn merge<'a, T, F>(mut front: &'a mut [T], mut back: &'a mut [T], compare: &mut F)
 where
     F: FnMut(&T, &T) -> Ordering,
 {
@@ -14,28 +14,46 @@ where
         return;
     }
 
-    if let Some(initial_element) = front
+    while let Some(initial_element) = front
         .iter()
         .position(|e| compare(&back[0], e) == Ordering::Less)
     {
         mem::swap(&mut back[0], &mut front[initial_element]);
 
-        let mut back_ptr = 1;
-        for front_ptr in (initial_element + 1)..front.len() {
-            if let Some(back_elem) = back.get(back_ptr) {
+        let mut back_pos = 1;
+        for front_pos in (initial_element + 1)..front.len() {
+            if let Some(back_elem) = back.get(back_pos) {
                 if compare(&back_elem, &back[0]) == Ordering::Less {
-                    mem::swap(&mut back[back_ptr], &mut front[front_ptr]);
-                    back_ptr += 1;
+                    mem::swap(&mut back[back_pos], &mut front[front_pos]);
+                    back_pos += 1;
                 } else {
-                    mem::swap(&mut back[0], &mut front[front_ptr]);
+                    mem::swap(&mut back[0], &mut front[front_pos]);
                 }
             } else {
-                break;
+                // shift `buffer` to `front[front_pos]` by backshifting
+                // all remaining elements in `front`.
+                front = &mut front[front_pos..];
+                while back.len() <= front.len() {
+                    back.swap_with_slice(&mut front[..back.len()]);
+                    front = &mut front[back.len()..];
+                }
+
+                back[..front.len()].swap_with_slice(front);
+                for i in 0..(back.len() - front.len()) {
+                    back.swap(i, i + front.len());
+                }
+
+                return;
             }
         }
 
-        let (buffer, rest) = back.split_at_mut(back_ptr);
-        merge(buffer, rest, compare);
+        let (buffer, rest) = back.split_at_mut(back_pos);
+        if rest.is_empty() {
+            return;
+        }
+
+        front = buffer;
+        back = rest;
     }
 }
 
@@ -85,6 +103,13 @@ mod tests {
     }
 
     #[test]
+    fn fuzz1() {
+        let mut q = q![1, 2; 0];
+        sort(&mut q);
+        eq(q, q![0, 1; 2]);
+    }
+
+    #[test]
     fn stable() {
         let mut q = q![S(0, 0), S(1, 0), S(0, 1), S(1, 1); S(0, 2), S(0, 3), S(1, 2), S(0, 4)];
         sort_by(&mut q, |a, b| a.0.cmp(&b.0));
@@ -92,5 +117,19 @@ mod tests {
             q,
             q![S(0, 0), S(0, 1), S(0, 2), S(0, 3); S(0, 4), S(1, 0), S(1, 1), S(1, 2)],
         );
+    }
+
+    #[test]
+    fn fuzz2() {
+        let mut q = q![S(1, 0), S(1, 1); S(0, 0)];
+        sort_by(&mut q, |a, b| a.0.cmp(&b.0));
+        eq(q, q![S(0, 0), S(1, 0); S(1, 1)]);
+    }
+
+    #[test]
+    fn fuzz3() {
+        let mut q = q![S(5, 0), S(4, 1), S(2, 2); S(0, 3), S(1, 4), S(3, 5)];
+        sort_by(&mut q, |a, b| a.0.cmp(&b.0));
+        eq(q, q![S(0, 3), S(1, 4), S(2, 2); S(3, 5), S(4, 1), S(5, 0)]);
     }
 }

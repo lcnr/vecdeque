@@ -9,4 +9,4 @@ using `slice::sort`. This implementation sorts both slices individually and then
 
 # License
 
-This repository is licensed under the [UNLICENSE](UNLICENSE)
+This repository is licensed under [UNLICENSE](UNLICENSE)
