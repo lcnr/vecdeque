@@ -28,6 +28,11 @@ where
                     back_pos += 1;
                 } else {
                     mem::swap(&mut back[0], &mut front[front_pos]);
+                    // FIXME: this merge is at least O(n * log n),
+                    // I don't think that it can be done faster
+                    for i in 1..back_pos {
+                        back.swap(i - 1, i);
+                    }
                 }
             } else {
                 // shift `buffer` to `front[front_pos]` by backshifting
